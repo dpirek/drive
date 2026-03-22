@@ -17,9 +17,31 @@ function getBaseUrl(url) {
 
 function route() {
   const routes = [];
+
+  function buildRegex(routePath) {
+    if (routePath === '*') {
+      return { regex: /^.*$/, keys: [] };
+    }
+
+    const keys = [];
+    const pattern = routePath.replace(/:([A-Za-z0-9_]+)\*/g, (_, key) => {
+      keys.push(key);
+      return '(.*)';
+    }).replace(/:([A-Za-z0-9_]+)/g, (_, key) => {
+      keys.push(key);
+      return '([^/]+)';
+    });
+
+    return {
+      regex: new RegExp(`^${pattern}$`),
+      keys,
+    };
+  }
+
   return {
     add: (path, method, handler, type, auth = true, response = null) => {
-      routes.push({ path, method, handler, type, auth, response });
+      const { regex, keys } = buildRegex(path);
+      routes.push({ path, method, handler, type, auth, response, regex, keys });
     },
     match: (url, method) => {
       const params = {};
@@ -29,14 +51,11 @@ function route() {
 
       const route = routes.find(r => {
         if (r.method && r.method !== method) return false;
-        
-        const keys = r.path.match(/:\w+/g);
-        if (!keys) return r.path === url;
-        const regex = new RegExp('^' + r.path.replace(/:\w+/g, '([^/]+)') + '$');
-        const match = url.match(regex);
+
+        const match = url.match(r.regex);
         if (match) {
-          keys.forEach((key, i) => {
-            params[key.slice(1)] = match[i + 1];
+          r.keys.forEach((key, i) => {
+            params[key] = match[i + 1];
           });
         }
         return match;
