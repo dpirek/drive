@@ -434,11 +434,10 @@ function renderUser() {
 }
 
 function renderDiskFree(stats) {
-  const freePercent = Number(stats?.freePercent);
   const freeBytes = Number(stats?.freeBytes);
-  if (!Number.isFinite(freePercent) || !Number.isFinite(freeBytes)) return;
+  if (!Number.isFinite(freeBytes)) return;
   const freeGb = freeBytes / (1024 ** 3);
-  const text = `${Math.round(freePercent)}% • ${freeGb.toFixed(1)} GB free`;
+  const text = `${freeGb.toFixed(1)} GB free`;
   if (el.diskFree) el.diskFree.textContent = text;
   if (el.mobileDiskFree) el.mobileDiskFree.textContent = text;
 }
