@@ -470,7 +470,7 @@ function renderFiles(items) {
       <td>${item.type}</td>
       <td>${formatSize(item.size)}</td>
       <td>${formatDate(item.modifiedAt)}</td>
-      <td>
+      <td class="text-end text-nowrap">
         ${openButton}
         ${previewButton}
         ${playButton}
