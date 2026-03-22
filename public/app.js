@@ -176,8 +176,14 @@ async function loadDirectory(
 ) {
   try {
     const normalizedDir = normalizeDir(dir);
-    const query = new URLSearchParams({ dir: normalizedDir });
-    const data = await request(`/api/files?${query.toString()}`);
+    const encodedPath = normalizedDir
+      ? `/${normalizedDir
+          .split("/")
+          .filter(Boolean)
+          .map((segment) => encodeURIComponent(segment))
+          .join("/")}`
+      : "";
+    const data = await request(`/api/files${encodedPath}`);
 
     state.currentPath = data.currentPath;
     state.parentPath = data.parentPath;

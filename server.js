@@ -84,14 +84,40 @@ async function listDirectory(relativeDir = "") {
   };
 }
 
-app.get("/api/files", async (req, res) => {
+function decodeApiDirPath(pathValue = "") {
+  const normalized = String(pathValue).replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!normalized) return "";
+
+  return normalized
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join("/");
+}
+
+async function handleListDirectory(req, res, dirFromPath = "") {
   try {
-    const dir = String(req.query.dir || "");
+    // Keep query support for older clients while preferring path-based routing.
+    const dir = decodeApiDirPath(dirFromPath || String(req.query.dir || ""));
     const result = await listDirectory(dir);
     res.json(result);
   } catch (error) {
     res.status(400).json({ error: error.message || "Unable to list directory" });
   }
+}
+
+app.get("/api/files", (req, res) => {
+  handleListDirectory(req, res);
+});
+
+app.get("/api/files/*", (req, res) => {
+  handleListDirectory(req, res, req.params[0] || "");
 });
 
 app.get("/api/file", async (req, res) => {
