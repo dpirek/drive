@@ -1,5 +1,4 @@
 import http from "http";
-import fsPromises from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { isInside } from "./utils/path.js";
@@ -22,8 +21,6 @@ const STORAGE_ROOT = "/Users/dpirek/Documents";
 const PUBLIC_ROOT = path.join(__dirname, "public");
 
 console.log(`Storage root: ${STORAGE_ROOT}`);
-
-await fsPromises.mkdir(STORAGE_ROOT, { recursive: true });
 const { resolveInsideRoot, listDirectory } = createStorageUtils({ storageRoot: STORAGE_ROOT });
 
 const filesHandlers = createFilesHandlers({ listDirectory, resolveInsideRoot });
