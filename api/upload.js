@@ -6,13 +6,25 @@ import { sanitizeFileName } from "../utils/string.js";
 import { sendJson } from "../utils/http.js";
 
 function createUploadHandlers({ resolveInsideRoot }) {
-  async function uploadFiles(req, res, { queryParams }) {
+  async function uploadFiles(req, res, { params }) {
     try {
-      const requestedDir = String(queryParams.dir || "");
-      const rawName = String(queryParams.name || "").trim();
+      const rawTargetPath = String(params.targetPath || "").replace(/^\/+/, "").replace(/\/+$/, "");
+      const decodedParts = rawTargetPath
+        .split("/")
+        .filter(Boolean)
+        .map((segment) => {
+          try {
+            return decodeURIComponent(segment);
+          } catch {
+            return segment;
+          }
+        });
+
+      const rawName = String(decodedParts.pop() || "").trim();
       if (!rawName) {
         return sendJson(res, 400, { error: "File name is required" });
       }
+      const requestedDir = decodedParts.join("/");
 
       const { target: uploadTarget } = resolveInsideRoot(requestedDir);
       await fsPromises.mkdir(uploadTarget, { recursive: true });

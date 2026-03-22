@@ -370,12 +370,16 @@ el.uploadForm.addEventListener("submit", async (event) => {
     let completedFiles = 0;
 
     for (const file of files) {
-      const query = new URLSearchParams({
-        dir: state.currentPath,
-        name: file.name,
-      });
+      const pathSegments = [];
+      if (state.currentPath) {
+        pathSegments.push(
+          ...state.currentPath.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment))
+        );
+      }
+      pathSegments.push(encodeURIComponent(file.name));
+      const uploadUrl = `/upload/${pathSegments.join("/")}`;
 
-      await uploadWithProgress(`/api/upload?${query.toString()}`, file, (percentage) => {
+      await uploadWithProgress(uploadUrl, file, (percentage) => {
         const overall = Math.round(((completedFiles + percentage / 100) / totalFiles) * 100);
         setStatus(`Uploading ${overall}%`);
       });
