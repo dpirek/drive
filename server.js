@@ -19,6 +19,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use((err, _req, res, _next) => res.status(400).json({ error: err.message || "Request failed" }));
 
+app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 const storage = multer.diskStorage({
   destination: async (req, _file, cb) => {
     try {

@@ -2,8 +2,40 @@ export function normalizeDir(value = "") {
   return String(value).replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
+function encodeDirForPath(dir) {
+  if (!dir) return "/";
+  return `/${dir
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")}`;
+}
+
+function decodePathToDir(pathname = "/") {
+  const trimmed = String(pathname).replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!trimmed) return "";
+
+  return normalizeDir(
+    trimmed
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => {
+        try {
+          return decodeURIComponent(segment);
+        } catch {
+          return segment;
+        }
+      })
+      .join("/")
+  );
+}
+
 export function getDirFromUrl() {
   const url = new URL(window.location.href);
+  const dirFromPath = decodePathToDir(url.pathname);
+  if (dirFromPath) return dirFromPath;
+
+  // Backward compatibility: allow legacy `?dir=` links and migrate via history replace.
   return normalizeDir(url.searchParams.get("dir") || "");
 }
 
@@ -13,14 +45,14 @@ export function syncUrlToDir(dir, { replace = false } = {}) {
   if (normalized === current) return;
 
   const url = new URL(window.location.href);
-  if (normalized) {
-    url.searchParams.set("dir", normalized);
-  } else {
-    url.searchParams.delete("dir");
-  }
+  url.searchParams.delete("dir");
+
+  const pathname = encodeDirForPath(normalized);
+  const search = url.searchParams.toString();
+  const nextUrl = `${pathname}${search ? `?${search}` : ""}${url.hash}`;
 
   const method = replace ? "replaceState" : "pushState";
-  window.history[method]({ dir: normalized }, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history[method]({ dir: normalized }, "", nextUrl);
 }
 
 export function isImageFile(name) {
