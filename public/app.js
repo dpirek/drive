@@ -55,7 +55,7 @@ function formatSize(bytes) {
 }
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleDateString();
 }
 
 function showImagePreview(name) {
