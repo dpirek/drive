@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const STORAGE_ROOT = process.platform === "linux"
-  ? "/home/dpirek/Documents"
+  ? "/home/dpirek/files"
   : "/Users/dpirek/Documents";
 const PUBLIC_ROOT = path.join(__dirname, "public");
 
