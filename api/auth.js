@@ -1,37 +1,51 @@
-import * as auth from '../utils/auth.js';
+import * as auth from "../utils/auth.js";
+import { readJsonBody, sendJson } from "../utils/http.js";
 
-function getRoutePath(url = '') {
-  const raw = String(url || '');
-  const queryIndex = raw.indexOf('?');
-  return queryIndex === -1 ? raw : raw.slice(0, queryIndex);
-}
-
-
-async function login({ username, password, response }) {
-  if( username === 'dave' && password === 'zkouzka321') {
-    auth.login(response, username, 'admin');
+async function loginUser({ username, password, response }) {
+  if (username === "dave" && password === "a") {
+    auth.login(response, username, "admin");
     return {
-      username: username,
-      email: 'dpirek@gmail.com',
-      role: 'admin'
+      username,
+      email: "dpirek@gmail.com",
+      role: "admin",
     };
-  } else {
-    return { error: 'invalid credentials' };
   }
+
+  return { error: "invalid credentials" };
 }
 
-async function authApi({ url, method, authUser, body, response }) {
-  const routePath = getRoutePath(url);
-  if( method === 'GET' && routePath === '/api/auth') {
-    return authUser;
-  } else if (method === 'POST' && routePath === '/api/login') {
-    const { username, password } = body;
-    return await login({ username, password, response });
-  } else if (method === 'POST' && routePath === '/api/logout') {
-    auth.logout(response);
-    return { message: 'logged out' };
+function createAuthHandlers() {
+  async function getAuth(_req, res, { authUser }) {
+    return sendJson(res, 200, authUser || null);
   }
-  return { error: 'method not allowed' }
+
+  async function login(req, res) {
+    try {
+      const body = await readJsonBody(req);
+      const username = String(body.username || "");
+      const password = String(body.password || "");
+
+      const result = await loginUser({ username, password, response: res });
+      if (result.error) {
+        return sendJson(res, 401, result);
+      }
+
+      return sendJson(res, 200, result);
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message || "Unable to login" });
+    }
+  }
+
+  async function logout(_req, res) {
+    auth.logout(res);
+    return sendJson(res, 200, { message: "logged out" });
+  }
+
+  return {
+    getAuth,
+    login,
+    logout,
+  };
 }
 
-export { authApi };
+export { createAuthHandlers };

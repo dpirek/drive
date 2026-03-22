@@ -3,8 +3,24 @@ import path from "path";
 import { sendFile, sendJson } from "../utils/http.js";
 
 function createStaticHandler({ publicRoot, isInside }) {
-  return async function handleStatic(_req, res, { pathname }) {
+  return async function handleStatic(_req, res, { pathname, authUser }) {
     const decodedPath = decodeURIComponent(pathname);
+    const isLoginPage = decodedPath === "/login";
+
+    if (isLoginPage) {
+      if (authUser) {
+        res.writeHead(302, { Location: "/" });
+        res.end();
+        return;
+      }
+      return sendFile(res, path.join(publicRoot, "login.html"));
+    }
+
+    if (!authUser && !path.extname(decodedPath)) {
+      res.writeHead(302, { Location: "/login" });
+      res.end();
+      return;
+    }
 
     if (decodedPath === "/") {
       return sendFile(res, path.join(publicRoot, "index.html"));

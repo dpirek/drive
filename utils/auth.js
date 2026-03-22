@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+ import crypto from 'crypto';
 import { CONFIG } from '../config.js';
 
 const SECRET = CONFIG.secret;

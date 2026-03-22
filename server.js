@@ -9,7 +9,9 @@ import { createFilesHandlers } from "./api/files.js";
 import { createDirectoriesHandlers } from "./api/directories.js";
 import { createUploadHandlers } from "./api/upload.js";
 import { createStaticHandler } from "./api/static.js";
+import { createAuthHandlers } from "./api/auth.js";
 import { createAppRouter } from "./routes.js";
+import { getUserFromRequest } from "./utils/auth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,12 +29,14 @@ const { resolveInsideRoot, listDirectory } = createStorageUtils({ storageRoot: S
 const filesHandlers = createFilesHandlers({ listDirectory, resolveInsideRoot });
 const directoriesHandlers = createDirectoriesHandlers({ resolveInsideRoot });
 const uploadHandlers = createUploadHandlers({ resolveInsideRoot, port: PORT });
+const authHandlers = createAuthHandlers();
 const handleStatic = createStaticHandler({ publicRoot: PUBLIC_ROOT, isInside });
 
 const appRouter = createAppRouter({
   filesHandlers,
   directoriesHandlers,
   uploadHandlers,
+  authHandlers,
   staticHandler: handleStatic,
 });
 
@@ -42,10 +46,21 @@ const server = http.createServer(async (req, res) => {
   try {
     const matched = appRouter.match(req.url || "/", req.method || "GET");
     if (matched) {
+      const authUser = getUserFromRequest(req);
+      if (matched.auth && !authUser) {
+        if (url.pathname.startsWith("/api/")) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+        res.writeHead(302, { Location: "/login" });
+        res.end();
+        return;
+      }
+
       return await matched.handler(req, res, {
         params: matched.params,
         queryParams: matched.queryParams,
         pathname: url.pathname,
+        authUser,
       });
     }
     return sendJson(res, 404, { error: "Not found" });

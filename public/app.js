@@ -11,9 +11,13 @@ import {
 const state = {
   currentPath: "",
   parentPath: null,
+  authUser: null,
 };
 
 const el = {
+  userAvatar: document.getElementById("userAvatar"),
+  userName: document.getElementById("userName"),
+  logoutButton: document.getElementById("logoutButton"),
   currentPath: document.getElementById("currentPath"),
   sidebarNav: document.getElementById("sidebarNav"),
   createDirForm: document.getElementById("createDirForm"),
@@ -106,6 +110,13 @@ function setStatus(message, isError = false) {
   el.status.className = isError
     ? "small text-danger-emphasis bg-danger-subtle border border-danger-subtle rounded px-2 py-1 mb-3"
     : "small text-body-secondary mb-3";
+}
+
+function renderUser() {
+  const username = String(state.authUser?.username || "");
+  const initial = username ? username.charAt(0).toUpperCase() : "U";
+  el.userAvatar.innerHTML = username ? initial : '<i class="bi bi-person-fill"></i>';
+  el.userName.textContent = username || "";
 }
 
 function renderFiles(items) {
@@ -230,6 +241,10 @@ function renderPathNav() {
 async function request(url, options = {}) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    window.location.replace("/login");
+    throw new Error("Unauthorized");
+  }
   if (!response.ok) {
     throw new Error(data.error || "Request failed");
   }
@@ -277,6 +292,15 @@ el.currentPath.addEventListener("click", (event) => {
   if (!link) return;
   event.preventDefault();
   loadDirectory(link.dataset.path || "");
+});
+
+el.logoutButton.addEventListener("click", async () => {
+  try {
+    await request("/api/logout", { method: "POST" });
+  } catch {
+    // Ignore and force redirect to login anyway.
+  }
+  window.location.replace("/login");
 });
 
 el.createDirForm.addEventListener("submit", async (event) => {
@@ -400,4 +424,18 @@ window.addEventListener("popstate", () => {
   loadDirectory(getDirFromUrl(), { syncUrl: false });
 });
 
-loadDirectory(getDirFromUrl(), { replaceHistory: true });
+async function init() {
+  try {
+    state.authUser = await request("/api/auth");
+    if (!state.authUser) {
+      window.location.replace("/login");
+      return;
+    }
+    renderUser();
+    await loadDirectory(getDirFromUrl(), { replaceHistory: true });
+  } catch {
+    window.location.replace("/login");
+  }
+}
+
+init();
