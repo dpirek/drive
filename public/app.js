@@ -25,6 +25,8 @@ const state = {
 };
 
 const el = {
+  appMain: document.getElementById("appMain"),
+  audioDock: document.getElementById("audioDock"),
   mobileMenuPanel: document.getElementById("mobileMenuPanel"),
   userAvatar: document.getElementById("userAvatar"),
   mobileUserAvatar: document.getElementById("mobileUserAvatar"),
@@ -125,12 +127,22 @@ function updateAudioControls() {
   const hasSelection = state.currentAudioIndex >= 0;
   el.audioRewindButton.disabled = !hasSelection || state.currentAudioIndex <= 0;
   el.audioForwardButton.disabled = !hasSelection || state.currentAudioIndex >= state.audioPlaylist.length - 1;
-  el.audioPlayButton.disabled = !hasSelection;
+  el.audioPlayButton.disabled = !hasPlaylist;
   el.audioPauseButton.disabled = !hasSelection;
   el.audioStopButton.disabled = !hasSelection;
   if (!hasPlaylist || !hasSelection) {
     el.audioNowPlaying.textContent = "No track selected";
     el.audioTiming.textContent = "0:00 / -0:00";
+  }
+}
+
+function updatePlayerVisibility(hasPlaylist) {
+  const isVisible = Boolean(hasPlaylist);
+  if (el.audioDock) {
+    el.audioDock.classList.toggle("d-none", !isVisible);
+  }
+  if (el.appMain) {
+    el.appMain.style.paddingBottom = isVisible ? "5.5rem" : "0";
   }
 }
 
@@ -158,6 +170,12 @@ function setAudioPlaylist(items) {
     .filter((item) => item.type === "file" && isAudioFile(item.name))
     .map((item) => item.name);
 
+  if (state.audioPlaylist.length === 0) {
+    clearAudioPlayback();
+    updatePlayerVisibility(false);
+    return;
+  }
+
   if (!state.audioPlaylist.includes(state.currentAudioName)) {
     state.currentAudioIndex = -1;
     state.currentAudioName = "";
@@ -165,6 +183,7 @@ function setAudioPlaylist(items) {
     state.currentAudioIndex = state.audioPlaylist.indexOf(state.currentAudioName);
   }
 
+  updatePlayerVisibility(true);
   updateAudioControls();
 }
 

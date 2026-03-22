@@ -44,6 +44,25 @@
       .spectrum-brick.on {
         opacity: 1;
       }
+      .audio-timing-pill {
+        min-width: 14rem;
+        min-height: 2.5rem;
+        padding: 0.15rem 0.7rem;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        background: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.45rem;
+      }
+      .audio-track-subtitle {
+        max-width: 16rem;
+        font-size: 0.68rem;
+        line-height: 1.05;
+        color: #868e96;
+      }
       @keyframes cassette-reel-spin {
         from {
           transform: rotate(0deg);
@@ -55,7 +74,7 @@
     </style>
   </head>
   <body class="bg-body-tertiary">
-    <main class="container-fluid p-0 min-vh-100" style="padding-bottom: 5.5rem;">
+    <main id="appMain" class="container-fluid p-0 min-vh-100">
       <div class="row g-0 min-vh-100">
         <aside class="d-none d-lg-block col-lg-3 col-xl-2">
           <div class="card shadow-sm h-100 rounded-0">
@@ -250,8 +269,8 @@
       </div>
     </div>
 
-    <section class="position-fixed bottom-0 start-0 end-0 bg-body border-top shadow-sm p-2" style="z-index: 1040;">
-      <div class="container-fluid d-flex align-items-center gap-2">
+    <section id="audioDock" class="position-fixed bottom-0 start-0 end-0 bg-body border-top shadow-sm p-2 d-none" style="z-index: 1040;">
+      <div class="container-fluid d-flex align-items-center gap-2 position-relative">
         <button id="audioRewindButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Previous track" aria-label="Previous track">
           <i class="bi bi-rewind-fill"></i>
         </button>
@@ -267,10 +286,10 @@
         <button id="audioForwardButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Next track" aria-label="Next track">
           <i class="bi bi-fast-forward-fill"></i>
         </button>
-        <span id="audioNowPlaying" class="small text-body-secondary text-truncate" style="min-width: 9rem; max-width: 30vw;">
-          No track selected
-        </span>
-        <span id="audioTiming" class="small text-body-secondary text-nowrap">0:00 / -0:00</span>
+        <div class="audio-timing-pill position-absolute top-50 start-50 translate-middle">
+          <span id="audioTiming" class="small text-body-secondary text-nowrap">0:00 / -0:00</span>
+          <span id="audioNowPlaying" class="audio-track-subtitle text-truncate">No track selected</span>
+        </div>
         <svg id="audioSpectrum" class="audio-spectrum ms-auto" viewBox="0 0 56 28" role="img" aria-label="Audio analyzer"></svg>
         <div id="audioCassette" class="cassette-icon" role="img" aria-label="Cassette"></div>
         <audio id="audioPlayer" class="d-none" preload="metadata" aria-hidden="true"></audio>
