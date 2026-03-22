@@ -12,6 +12,7 @@ const state = {
   currentPath: "",
   parentPath: null,
   authUser: null,
+  audioPlayMode: "loop",
   audioPlaylist: [],
   currentAudioIndex: -1,
   currentAudioName: "",
@@ -57,6 +58,7 @@ const el = {
   audioPauseButton: document.getElementById("audioPauseButton"),
   audioStopButton: document.getElementById("audioStopButton"),
   audioForwardButton: document.getElementById("audioForwardButton"),
+  audioModeButton: document.getElementById("audioModeButton"),
   audioSpectrum: document.getElementById("audioSpectrum"),
   audioSpectrumBars: [],
   videoPreviewModal: document.getElementById("videoPreviewModal"),
@@ -132,11 +134,33 @@ function updateAudioControls() {
   el.audioPlayButton.disabled = !hasPlaylist;
   el.audioPauseButton.disabled = !hasSelection;
   el.audioStopButton.disabled = !hasSelection;
+  if (el.audioModeButton) {
+    el.audioModeButton.disabled = !hasPlaylist;
+  }
   if (!hasPlaylist || !hasSelection) {
     el.audioNowPlaying.textContent = "No track selected";
     el.audioTiming.textContent = "0:00 / -0:00";
   }
   updateAudioTransportHighlight();
+}
+
+function updateAudioPlayModeButton() {
+  if (!el.audioModeButton) return;
+  if (state.audioPlayMode === "once") {
+    el.audioModeButton.innerHTML = '<i class="bi bi-1-circle" aria-hidden="true"></i>';
+    el.audioModeButton.title = "Play mode: once";
+    el.audioModeButton.setAttribute("aria-label", "Play mode: once");
+    return;
+  }
+  if (state.audioPlayMode === "shuffle") {
+    el.audioModeButton.innerHTML = '<i class="bi bi-shuffle" aria-hidden="true"></i>';
+    el.audioModeButton.title = "Play mode: shuffle";
+    el.audioModeButton.setAttribute("aria-label", "Play mode: shuffle");
+    return;
+  }
+  el.audioModeButton.innerHTML = '<i class="bi bi-arrow-repeat" aria-hidden="true"></i>';
+  el.audioModeButton.title = "Play mode: loop";
+  el.audioModeButton.setAttribute("aria-label", "Play mode: loop");
 }
 
 function setTransportButtonActive(button, isActive) {
@@ -204,6 +228,7 @@ function setAudioPlaylist(items) {
   }
 
   updatePlayerVisibility(true);
+  updateAudioPlayModeButton();
   updateAudioControls();
 }
 
@@ -675,15 +700,46 @@ el.audioStopButton.addEventListener("click", () => {
   setCassettePlaying(false);
 });
 
+el.audioModeButton?.addEventListener("click", () => {
+  if (state.audioPlayMode === "loop") {
+    state.audioPlayMode = "shuffle";
+  } else if (state.audioPlayMode === "shuffle") {
+    state.audioPlayMode = "once";
+  } else {
+    state.audioPlayMode = "loop";
+  }
+  updateAudioPlayModeButton();
+});
+
 el.audioPlayer.addEventListener("ended", () => {
+  if (state.audioPlaylist.length === 0) return;
+
+  if (state.audioPlayMode === "once") {
+    updateAudioControls();
+    updateAudioTiming();
+    stopSpectrumAnalyzer();
+    setCassettePlaying(false);
+    return;
+  }
+
+  if (state.audioPlayMode === "shuffle") {
+    if (state.audioPlaylist.length === 1) {
+      playTrackAtIndex(0);
+      return;
+    }
+    const candidates = state.audioPlaylist
+      .map((_, index) => index)
+      .filter((index) => index !== state.currentAudioIndex);
+    const randomIndex = candidates[Math.floor(Math.random() * candidates.length)];
+    playTrackAtIndex(randomIndex);
+    return;
+  }
+
   if (state.currentAudioIndex < state.audioPlaylist.length - 1) {
     playTrackAtIndex(state.currentAudioIndex + 1);
     return;
   }
-  updateAudioControls();
-  updateAudioTiming();
-  stopSpectrumAnalyzer();
-  setCassettePlaying(false);
+  playTrackAtIndex(0);
 });
 
 el.audioPlayer.addEventListener("loadedmetadata", () => {
@@ -922,6 +978,7 @@ async function init() {
   try {
     await initCassetteGraphic();
     initSpectrumBars();
+    updateAudioPlayModeButton();
     state.authUser = await request("/api/auth");
     if (!state.authUser) {
       window.location.replace("/login");

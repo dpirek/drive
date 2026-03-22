@@ -60,7 +60,7 @@
         text-align: center;
         background: #2b3035;
         border: 1px solid #495057;
-        border-radius: 0.45rem;
+        border-radius: 0;
       }
       .audio-timeline {
         width: 100%;
@@ -305,6 +305,9 @@
         </button>
         <button id="audioForwardButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Next track" aria-label="Next track">
           <i class="bi bi-fast-forward-fill"></i>
+        </button>
+        <button id="audioModeButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Play mode: loop" aria-label="Play mode: loop">
+          <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
         </button>
         <div class="audio-timing-pill position-absolute top-50 start-50 translate-middle">
           <span id="audioTiming" class="small text-body-secondary text-nowrap">0:00 / -0:00</span>
