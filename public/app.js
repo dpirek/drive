@@ -50,6 +50,8 @@ const el = {
   audioCassette: document.getElementById("audioCassette"),
   audioNowPlaying: document.getElementById("audioNowPlaying"),
   audioTiming: document.getElementById("audioTiming"),
+  audioTimeline: document.getElementById("audioTimeline"),
+  audioTimelineProgress: document.getElementById("audioTimelineProgress"),
   audioRewindButton: document.getElementById("audioRewindButton"),
   audioPlayButton: document.getElementById("audioPlayButton"),
   audioPauseButton: document.getElementById("audioPauseButton"),
@@ -134,6 +136,20 @@ function updateAudioControls() {
     el.audioNowPlaying.textContent = "No track selected";
     el.audioTiming.textContent = "0:00 / -0:00";
   }
+  updateAudioTransportHighlight();
+}
+
+function setTransportButtonActive(button, isActive) {
+  if (!button) return;
+  button.classList.toggle("btn-secondary", Boolean(isActive));
+  button.classList.toggle("btn-outline-secondary", !isActive);
+}
+
+function updateAudioTransportHighlight() {
+  const hasSelection = state.currentAudioIndex >= 0;
+  const isPaused = el.audioPlayer.paused;
+  setTransportButtonActive(el.audioPlayButton, hasSelection && !isPaused);
+  setTransportButtonActive(el.audioPauseButton, hasSelection && isPaused);
 }
 
 function updatePlayerVisibility(hasPlaylist) {
@@ -163,6 +179,10 @@ function updateAudioTiming() {
   const current = Number.isFinite(el.audioPlayer.currentTime) ? el.audioPlayer.currentTime : 0;
   const left = Math.max(0, duration - current);
   el.audioTiming.textContent = `${formatAudioTime(duration)} / -${formatAudioTime(left)}`;
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0;
+  if (el.audioTimelineProgress) {
+    el.audioTimelineProgress.style.width = `${progressPercent.toFixed(2)}%`;
+  }
 }
 
 function setAudioPlaylist(items) {
@@ -194,6 +214,9 @@ function clearAudioPlayback() {
   el.audioPlayer.src = "";
   el.audioPlayer.load();
   el.audioTiming.textContent = "0:00 / -0:00";
+  if (el.audioTimelineProgress) {
+    el.audioTimelineProgress.style.width = "0%";
+  }
   if (el.audioCassette) {
     el.audioCassette.classList.remove("is-playing");
   }
@@ -518,6 +541,18 @@ function closeSidebarOnMobile() {
   instance.hide();
 }
 
+function isTypingTarget(target) {
+  if (!(target instanceof Element)) return false;
+  const tag = target.tagName;
+  return (
+    target.isContentEditable ||
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    Boolean(target.closest("input, textarea, select, [contenteditable='true']"))
+  );
+}
+
 async function request(url, options = {}) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
@@ -662,11 +697,13 @@ el.audioPlayer.addEventListener("timeupdate", () => {
 el.audioPlayer.addEventListener("play", () => {
   startSpectrumAnalyzer();
   setCassettePlaying(true);
+  updateAudioTransportHighlight();
 });
 
 el.audioPlayer.addEventListener("pause", () => {
   stopSpectrumAnalyzer();
   setCassettePlaying(false);
+  updateAudioTransportHighlight();
 });
 
 el.currentPath.addEventListener("click", (event) => {
@@ -827,6 +864,58 @@ el.videoPreviewModal.addEventListener("hidden.bs.modal", () => {
 
 window.addEventListener("popstate", () => {
   loadDirectory(getDirFromUrl(), { syncUrl: false });
+});
+
+window.addEventListener("keydown", (event) => {
+  if (isTypingTarget(event.target)) return;
+
+  if (event.code === "Space") {
+    event.preventDefault();
+    if (state.currentAudioIndex === -1 && state.audioPlaylist.length > 0) {
+      playTrackAtIndex(0);
+      return;
+    }
+    if (el.audioPlayer.paused) {
+      void el.audioPlayer.play().catch(() => {});
+    } else {
+      el.audioPlayer.pause();
+    }
+    return;
+  }
+
+  if (event.code === "Enter") {
+    event.preventDefault();
+    if (state.currentAudioIndex === -1 && state.audioPlaylist.length > 0) {
+      playTrackAtIndex(0);
+      return;
+    }
+    void el.audioPlayer.play().catch(() => {});
+    return;
+  }
+
+  if (event.code === "ArrowLeft") {
+    event.preventDefault();
+    if (state.currentAudioIndex <= 0) return;
+    playTrackAtIndex(state.currentAudioIndex - 1);
+    return;
+  }
+
+  if (event.code === "ArrowRight") {
+    event.preventDefault();
+    if (state.currentAudioIndex >= state.audioPlaylist.length - 1) return;
+    playTrackAtIndex(state.currentAudioIndex + 1);
+  }
+});
+
+el.audioTimeline?.addEventListener("click", (event) => {
+  const duration = Number.isFinite(el.audioPlayer.duration) ? el.audioPlayer.duration : 0;
+  if (!duration || state.currentAudioIndex < 0) return;
+  const rect = el.audioTimeline.getBoundingClientRect();
+  if (rect.width <= 0) return;
+  const clickX = event.clientX - rect.left;
+  const ratio = Math.min(1, Math.max(0, clickX / rect.width));
+  el.audioPlayer.currentTime = ratio * duration;
+  updateAudioTiming();
 });
 
 async function init() {
