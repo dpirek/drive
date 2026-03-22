@@ -33,6 +33,8 @@ const el = {
   mobileUserAvatar: document.getElementById("mobileUserAvatar"),
   userName: document.getElementById("userName"),
   mobileUserName: document.getElementById("mobileUserName"),
+  diskFree: document.getElementById("diskFree"),
+  mobileDiskFree: document.getElementById("mobileDiskFree"),
   logoutButton: document.getElementById("logoutButton"),
   mobileLogoutButton: document.getElementById("mobileLogoutButton"),
   currentPath: document.getElementById("currentPath"),
@@ -429,6 +431,16 @@ function renderUser() {
   el.mobileUserAvatar.innerHTML = username ? initial : '<i class="bi bi-person-fill"></i>';
   el.userName.textContent = username || "";
   el.mobileUserName.textContent = username || "";
+}
+
+function renderDiskFree(stats) {
+  const freePercent = Number(stats?.freePercent);
+  const freeBytes = Number(stats?.freeBytes);
+  if (!Number.isFinite(freePercent) || !Number.isFinite(freeBytes)) return;
+  const freeGb = freeBytes / (1024 ** 3);
+  const text = `${Math.round(freePercent)}% • ${freeGb.toFixed(1)} GB free`;
+  if (el.diskFree) el.diskFree.textContent = text;
+  if (el.mobileDiskFree) el.mobileDiskFree.textContent = text;
 }
 
 function renderFiles(items) {
@@ -985,6 +997,12 @@ async function init() {
       return;
     }
     renderUser();
+    try {
+      const storage = await request("/api/storage");
+      renderDiskFree(storage);
+    } catch {
+      // Ignore if storage stats are unavailable.
+    }
     await loadDirectory(getDirFromUrl(), { replaceHistory: true });
   } catch {
     window.location.replace("/login");

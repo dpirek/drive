@@ -9,8 +9,10 @@ import { createDirectoriesHandlers } from "./api/directories.js";
 import { createUploadHandlers } from "./api/upload.js";
 import { createStaticHandler } from "./api/static.js";
 import { createAuthHandlers } from "./api/auth.js";
+import { createStorageHandlers } from "./api/storage.js";
 import { createAppRouter } from "./routes.js";
 import { getUserFromRequest } from "./utils/auth.js";
+import { getDiskSpaceStats } from "./utils/disk.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +30,7 @@ const filesHandlers = createFilesHandlers({ listDirectory, resolveInsideRoot });
 const directoriesHandlers = createDirectoriesHandlers({ resolveInsideRoot });
 const uploadHandlers = createUploadHandlers({ resolveInsideRoot });
 const authHandlers = createAuthHandlers();
+const storageHandlers = createStorageHandlers({ getDiskSpaceStats, storageRoot: STORAGE_ROOT });
 const handleStatic = createStaticHandler({ publicRoot: PUBLIC_ROOT, isInside });
 
 const appRouter = createAppRouter({
@@ -35,6 +38,7 @@ const appRouter = createAppRouter({
   directoriesHandlers,
   uploadHandlers,
   authHandlers,
+  storageHandlers,
   staticHandler: handleStatic,
 });
 

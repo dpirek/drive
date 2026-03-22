@@ -1,6 +1,13 @@
 import { route } from "./utils/router.js";
 
-function createAppRouter({ filesHandlers, directoriesHandlers, uploadHandlers, authHandlers, staticHandler }) {
+function createAppRouter({
+  filesHandlers,
+  directoriesHandlers,
+  uploadHandlers,
+  authHandlers,
+  storageHandlers,
+  staticHandler,
+}) {
   const appRouter = route();
 
   appRouter.add("/api/files", "GET", filesHandlers.listFilesFromQuery);
@@ -12,6 +19,7 @@ function createAppRouter({ filesHandlers, directoriesHandlers, uploadHandlers, a
   appRouter.add("/api/auth", "GET", authHandlers.getAuth, null, false);
   appRouter.add("/api/login", "POST", authHandlers.login, null, false);
   appRouter.add("/api/logout", "POST", authHandlers.logout, null, false);
+  appRouter.add("/api/storage", "GET", storageHandlers.getStorageStats);
   appRouter.add("*", "GET", staticHandler, null, false);
   appRouter.add("*", "HEAD", staticHandler, null, false);
 
