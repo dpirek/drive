@@ -17,8 +17,8 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const STORAGE_ROOT = process.platform === "linux"
-  ? "/home/dpirek/"
-  : "/Users/dpirek/";
+  ? "/home/dpirek/Documents"
+  : "/Users/dpirek/Documents";
 const PUBLIC_ROOT = path.join(__dirname, "public");
 
 console.log(`Storage root: ${STORAGE_ROOT}`);
