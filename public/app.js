@@ -67,6 +67,36 @@ const videoModal = window.bootstrap?.Modal
   ? new window.bootstrap.Modal(el.videoPreviewModal)
   : null;
 
+async function initCassetteGraphic() {
+  if (!el.audioCassette) return;
+  try {
+    const response = await fetch("/tapecassette.svg");
+    if (!response.ok) return;
+    const svgText = await response.text();
+    const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+    const svg = parsed.documentElement;
+    if (!svg || svg.nodeName.toLowerCase() !== "svg") return;
+
+    const wrapReelForSpin = (reelGroup) => {
+      if (!reelGroup) return;
+      const spinner = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      spinner.classList.add("cassette-reel");
+      while (reelGroup.firstChild) {
+        spinner.appendChild(reelGroup.firstChild);
+      }
+      reelGroup.appendChild(spinner);
+    };
+
+    wrapReelForSpin(svg.querySelector("#g3631"));
+    wrapReelForSpin(svg.querySelector("#g3641"));
+
+    el.audioCassette.innerHTML = "";
+    el.audioCassette.appendChild(svg);
+  } catch {
+    // Keep UI usable if cassette asset cannot be loaded.
+  }
+}
+
 function formatSize(bytes) {
   if (bytes == null) return "-";
   if (bytes < 1024) return `${bytes} B`;
@@ -782,6 +812,7 @@ window.addEventListener("popstate", () => {
 
 async function init() {
   try {
+    await initCassetteGraphic();
     initSpectrumBars();
     state.authUser = await request("/api/auth");
     if (!state.authUser) {
