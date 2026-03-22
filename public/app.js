@@ -15,7 +15,7 @@ const state = {
 
 const el = {
   currentPath: document.getElementById("currentPath"),
-  upButton: document.getElementById("upButton"),
+  sidebarNav: document.getElementById("sidebarNav"),
   createDirForm: document.getElementById("createDirForm"),
   directoryName: document.getElementById("directoryName"),
   uploadForm: document.getElementById("uploadForm"),
@@ -161,6 +161,72 @@ function renderFiles(items) {
   }
 }
 
+function renderSidebar(items) {
+  el.sidebarNav.innerHTML = "";
+  const addTreeNode = (label, path, depth, { active = false, icon = "bi-folder" } = {}) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `list-group-item list-group-item-action border-0${active ? " active" : ""}`;
+    btn.dataset.path = path;
+    btn.style.paddingLeft = `${0.75 + depth * 0.55}rem`;
+    btn.innerHTML = `<i class="bi ${icon} me-2"></i>${label}`;
+    el.sidebarNav.appendChild(btn);
+  };
+
+  addTreeNode("Root", "", 0, {
+    active: !state.currentPath,
+    icon: "bi-house-door",
+  });
+
+  const segments = state.currentPath ? state.currentPath.split("/") : [];
+  let partial = "";
+  for (let depth = 0; depth < segments.length; depth += 1) {
+    const segment = segments[depth];
+    partial = partial ? `${partial}/${segment}` : segment;
+    addTreeNode(segment, partial, depth + 1, {
+      active: partial === state.currentPath,
+      icon: "bi-folder2-open",
+    });
+  }
+
+  const directories = items.filter((item) => item.type === "directory");
+  for (const directory of directories) {
+    const path = state.currentPath ? `${state.currentPath}/${directory.name}` : directory.name;
+    addTreeNode(directory.name, path, segments.length + 1, {
+      icon: "bi-folder",
+    });
+  }
+}
+
+function renderPathNav() {
+  el.currentPath.innerHTML = "";
+
+  const rootPath = "";
+  const rootLink = document.createElement("a");
+  rootLink.href = "/";
+  rootLink.className = `btn btn-sm ${state.currentPath ? "btn-outline-secondary" : "btn-secondary"}`;
+  rootLink.dataset.path = rootPath;
+  rootLink.textContent = "/";
+  el.currentPath.appendChild(rootLink);
+
+  const segments = state.currentPath ? state.currentPath.split("/") : [];
+  let partial = "";
+  for (const segment of segments) {
+    const separator = document.createElement("span");
+    separator.className = "text-body-secondary px-1";
+    separator.textContent = "/";
+    el.currentPath.appendChild(separator);
+
+    partial = partial ? `${partial}/${segment}` : segment;
+    const link = document.createElement("a");
+    link.href = `/${partial.split("/").map((part) => encodeURIComponent(part)).join("/")}`;
+    link.className = `btn btn-sm ${partial === state.currentPath ? "btn-secondary" : "btn-outline-secondary"}`;
+    link.dataset.path = partial;
+    link.textContent = segment;
+    el.currentPath.appendChild(link);
+  }
+}
+
 async function request(url, options = {}) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
@@ -188,10 +254,9 @@ async function loadDirectory(
     state.currentPath = data.currentPath;
     state.parentPath = data.parentPath;
 
-    el.currentPath.textContent = `/${state.currentPath}`.replace(/\/$/, "") || "/";
-    el.upButton.disabled = state.parentPath == null;
-
+    renderPathNav();
     renderFiles(data.items);
+    renderSidebar(data.items);
     if (syncUrl) {
       syncUrlToDir(data.currentPath, { replace: replaceHistory });
     }
@@ -201,9 +266,17 @@ async function loadDirectory(
   }
 }
 
-el.upButton.addEventListener("click", () => {
-  if (state.parentPath == null) return;
-  loadDirectory(state.parentPath);
+el.sidebarNav.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-path]");
+  if (!button) return;
+  loadDirectory(button.dataset.path || "");
+});
+
+el.currentPath.addEventListener("click", (event) => {
+  const link = event.target.closest("a[data-path]");
+  if (!link) return;
+  event.preventDefault();
+  loadDirectory(link.dataset.path || "");
 });
 
 el.createDirForm.addEventListener("submit", async (event) => {

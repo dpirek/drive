@@ -1,66 +1,65 @@
-import express from "express";
-import multer from "multer";
+import http from "http";
+import fs from "fs";
+import fsPromises from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
 const PORT = process.env.PORT || 3000;
-//const STORAGE_ROOT = path.join(__dirname, "storage");
-const STORAGE_ROOT = '/Users/dpirek/Documents';
+// const STORAGE_ROOT = path.join(__dirname, "storage");
+const STORAGE_ROOT = "/Users/dpirek/Documents";
+const PUBLIC_ROOT = path.join(__dirname, "public");
+
 console.log(`Storage root: ${STORAGE_ROOT}`);
 
-await fs.mkdir(STORAGE_ROOT, { recursive: true });
+await fsPromises.mkdir(STORAGE_ROOT, { recursive: true });
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-app.use((err, _req, res, _next) => res.status(400).json({ error: err.message || "Request failed" }));
-
-app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-const storage = multer.diskStorage({
-  destination: async (req, _file, cb) => {
-    try {
-      const requestedDir = req.body.dir || "";
-      const { target } = resolveInsideRoot(requestedDir);
-      await fs.mkdir(target, { recursive: true });
-      cb(null, target);
-    } catch {
-      cb(new Error("Invalid upload path"));
-    }
-  },
-  filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_");
-    cb(null, safeName || `upload-${Date.now()}`);
-  },
-});
-
-const upload = multer({ storage });
+function isInside(parent, target) {
+  return target === parent || target.startsWith(`${parent}${path.sep}`);
+}
 
 function resolveInsideRoot(relativeDir = "") {
-  const normalized = relativeDir.replace(/\\/g, "/").replace(/^\/+/, "");
+  const normalized = String(relativeDir).replace(/\\/g, "/").replace(/^\/+/, "");
   const target = path.resolve(STORAGE_ROOT, normalized);
 
-  if (!target.startsWith(STORAGE_ROOT)) {
+  if (!isInside(STORAGE_ROOT, target)) {
     throw new Error("Invalid path");
   }
 
   return { target, normalized };
 }
 
+function decodeApiDirPath(pathValue = "") {
+  const normalized = String(pathValue).replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!normalized) return "";
+
+  return normalized
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join("/");
+}
+
+function sanitizeFileName(name = "") {
+  return String(name).replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_");
+}
+
 async function listDirectory(relativeDir = "") {
   const { target, normalized } = resolveInsideRoot(relativeDir);
-  const entries = await fs.readdir(target, { withFileTypes: true });
+  const entries = await fsPromises.readdir(target, { withFileTypes: true });
 
   const items = await Promise.all(
     entries.map(async (entry) => {
       const itemPath = path.join(target, entry.name);
-      const stats = await fs.stat(itemPath);
+      const stats = await fsPromises.stat(itemPath);
       return {
         name: entry.name,
         type: entry.isDirectory() ? "directory" : "file",
@@ -84,123 +83,274 @@ async function listDirectory(relativeDir = "") {
   };
 }
 
-function decodeApiDirPath(pathValue = "") {
-  const normalized = String(pathValue).replace(/^\/+/, "").replace(/\/+$/, "");
-  if (!normalized) return "";
-
-  return normalized
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => {
-      try {
-        return decodeURIComponent(segment);
-      } catch {
-        return segment;
-      }
-    })
-    .join("/");
+function sendJson(res, statusCode, body) {
+  const data = JSON.stringify(body);
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(data),
+  });
+  res.end(data);
 }
 
-async function handleListDirectory(req, res, dirFromPath = "") {
-  try {
-    // Keep query support for older clients while preferring path-based routing.
-    const dir = decodeApiDirPath(dirFromPath || String(req.query.dir || ""));
-    const result = await listDirectory(dir);
-    res.json(result);
-  } catch (error) {
-    res.status(400).json({ error: error.message || "Unable to list directory" });
-  }
+function getContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const byExt = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+    ".mp4": "video/mp4",
+  };
+  return byExt[ext] || "application/octet-stream";
 }
 
-app.get("/api/files", (req, res) => {
-  handleListDirectory(req, res);
-});
-
-app.get("/api/files/*", (req, res) => {
-  handleListDirectory(req, res, req.params[0] || "");
-});
-
-app.get("/api/file", async (req, res) => {
-  try {
-    const dir = String(req.query.dir || "");
-    const name = String(req.query.name || "");
-
-    if (!name) {
-      return res.status(400).json({ error: "File name is required" });
-    }
-
-    const { target } = resolveInsideRoot(path.join(dir, name));
-    const stats = await fs.stat(target);
-
-    if (!stats.isFile()) {
-      return res.status(400).json({ error: "Requested path is not a file" });
-    }
-
-    res.sendFile(target);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return res.status(404).json({ error: "File not found" });
-    }
-    res.status(400).json({ error: error.message || "Unable to read file" });
-  }
-});
-
-app.post("/api/directories", async (req, res) => {
-  try {
-    const parentDir = String(req.body.parentDir || "");
-    const name = String(req.body.name || "").trim();
-
-    if (!name) {
-      return res.status(400).json({ error: "Directory name is required" });
-    }
-
-    if (name.includes("/") || name.includes("\\")) {
-      return res.status(400).json({ error: "Invalid directory name" });
-    }
-
-    const { target } = resolveInsideRoot(path.join(parentDir, name));
-    await fs.mkdir(target, { recursive: false });
-
-    res.status(201).json({ message: "Directory created" });
-  } catch (error) {
-    if (error.code === "EEXIST") {
-      return res.status(409).json({ error: "Directory already exists" });
-    }
-    res.status(400).json({ error: error.message || "Unable to create directory" });
-  }
-});
-
-app.post("/api/upload", upload.array("files"), (_req, res) => {
-  res.status(201).json({ message: "Files uploaded" });
-});
-
-app.delete("/api/files", async (req, res) => {
-  try {
-    const dir = String(req.body.dir || "");
-    const name = String(req.body.name || "");
-    const type = String(req.body.type || "");
-
-    if (!name || !type) {
-      return res.status(400).json({ error: "Name and type are required" });
-    }
-
-    const { target } = resolveInsideRoot(path.join(dir, name));
-
-    if (type === "directory") {
-      await fs.rm(target, { recursive: true, force: false });
+function sendFile(res, filePath) {
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", () => {
+    if (!res.headersSent) {
+      sendJson(res, 500, { error: "Unable to read file" });
     } else {
-      await fs.unlink(target);
+      res.destroy();
+    }
+  });
+
+  res.writeHead(200, { "Content-Type": getContentType(filePath) });
+  stream.pipe(res);
+}
+
+async function readRawBody(req, maxBytes = 50 * 1024 * 1024) {
+  const chunks = [];
+  let total = 0;
+
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) {
+      throw new Error("Request body too large");
+    }
+    chunks.push(buffer);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw.length) return {};
+
+  try {
+    return JSON.parse(raw.toString("utf8"));
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
+}
+
+async function readMultipartFormData(req) {
+  const host = req.headers.host || `localhost:${PORT}`;
+  const request = new Request(`http://${host}${req.url}`, {
+    method: req.method,
+    headers: req.headers,
+    body: req,
+    duplex: "half",
+  });
+
+  return request.formData();
+}
+
+async function handleApi(req, res, url) {
+  const { pathname, searchParams } = url;
+
+  if (req.method === "GET" && pathname === "/api/files") {
+    try {
+      const dir = decodeApiDirPath(String(searchParams.get("dir") || ""));
+      const result = await listDirectory(dir);
+      return sendJson(res, 200, result);
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message || "Unable to list directory" });
+    }
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/files/")) {
+    try {
+      const dir = decodeApiDirPath(pathname.slice("/api/files/".length));
+      const result = await listDirectory(dir);
+      return sendJson(res, 200, result);
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message || "Unable to list directory" });
+    }
+  }
+
+  if (req.method === "GET" && pathname === "/api/file") {
+    try {
+      const dir = String(searchParams.get("dir") || "");
+      const name = String(searchParams.get("name") || "");
+
+      if (!name) {
+        return sendJson(res, 400, { error: "File name is required" });
+      }
+
+      const { target } = resolveInsideRoot(path.join(dir, name));
+      const stats = await fsPromises.stat(target);
+
+      if (!stats.isFile()) {
+        return sendJson(res, 400, { error: "Requested path is not a file" });
+      }
+
+      return sendFile(res, target);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return sendJson(res, 404, { error: "File not found" });
+      }
+      return sendJson(res, 400, { error: error.message || "Unable to read file" });
+    }
+  }
+
+  if (req.method === "POST" && pathname === "/api/directories") {
+    try {
+      const body = await readJsonBody(req);
+      const parentDir = String(body.parentDir || "");
+      const name = String(body.name || "").trim();
+
+      if (!name) {
+        return sendJson(res, 400, { error: "Directory name is required" });
+      }
+
+      if (name.includes("/") || name.includes("\\")) {
+        return sendJson(res, 400, { error: "Invalid directory name" });
+      }
+
+      const { target } = resolveInsideRoot(path.join(parentDir, name));
+      await fsPromises.mkdir(target, { recursive: false });
+
+      return sendJson(res, 201, { message: "Directory created" });
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        return sendJson(res, 409, { error: "Directory already exists" });
+      }
+      return sendJson(res, 400, { error: error.message || "Unable to create directory" });
+    }
+  }
+
+  if (req.method === "POST" && pathname === "/api/upload") {
+    try {
+      const formData = await readMultipartFormData(req);
+      const requestedDir = String(formData.get("dir") || "");
+      const { target: uploadTarget } = resolveInsideRoot(requestedDir);
+      await fsPromises.mkdir(uploadTarget, { recursive: true });
+
+      const files = formData
+        .getAll("files")
+        .filter((value) => value && typeof value === "object" && typeof value.arrayBuffer === "function");
+
+      if (!files.length) {
+        return sendJson(res, 400, { error: "No files uploaded" });
+      }
+
+      await Promise.all(
+        files.map(async (file, index) => {
+          const safeName = sanitizeFileName(file.name) || `upload-${Date.now()}-${index}`;
+          const filePath = path.join(uploadTarget, safeName);
+          const content = Buffer.from(await file.arrayBuffer());
+          await fsPromises.writeFile(filePath, content);
+        })
+      );
+
+      return sendJson(res, 201, { message: "Files uploaded" });
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message || "Unable to upload files" });
+    }
+  }
+
+  if (req.method === "DELETE" && pathname === "/api/files") {
+    try {
+      const body = await readJsonBody(req);
+      const dir = String(body.dir || "");
+      const name = String(body.name || "");
+      const type = String(body.type || "");
+
+      if (!name || !type) {
+        return sendJson(res, 400, { error: "Name and type are required" });
+      }
+
+      const { target } = resolveInsideRoot(path.join(dir, name));
+
+      if (type === "directory") {
+        await fsPromises.rm(target, { recursive: true, force: false });
+      } else {
+        await fsPromises.unlink(target);
+      }
+
+      return sendJson(res, 200, { message: "Deleted" });
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return sendJson(res, 404, { error: "Item not found" });
+      }
+      return sendJson(res, 400, { error: error.message || "Unable to delete item" });
+    }
+  }
+
+  return sendJson(res, 404, { error: "Not found" });
+}
+
+async function handleStatic(req, res, url) {
+  const { pathname } = url;
+  const decodedPath = decodeURIComponent(pathname);
+
+  if (decodedPath === "/") {
+    return sendFile(res, path.join(PUBLIC_ROOT, "index.html"));
+  }
+
+  const relative = decodedPath.replace(/^\/+/, "");
+  const candidate = path.resolve(PUBLIC_ROOT, relative);
+
+  if (!isInside(PUBLIC_ROOT, candidate)) {
+    return sendJson(res, 400, { error: "Invalid path" });
+  }
+
+  try {
+    const stats = await fsPromises.stat(candidate);
+    if (stats.isFile()) {
+      return sendFile(res, candidate);
+    }
+  } catch {
+    // fall through to SPA fallback
+  }
+
+  if (path.extname(decodedPath)) {
+    return sendJson(res, 404, { error: "Not found" });
+  }
+
+  return sendFile(res, path.join(PUBLIC_ROOT, "index.html"));
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || `localhost:${PORT}`}`);
+
+  try {
+    if (url.pathname.startsWith("/api/")) {
+      return await handleApi(req, res, url);
     }
 
-    res.json({ message: "Deleted" });
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return res.status(404).json({ error: "Item not found" });
+    if (req.method === "GET" || req.method === "HEAD") {
+      return await handleStatic(req, res, url);
     }
-    res.status(400).json({ error: error.message || "Unable to delete item" });
+
+    return sendJson(res, 405, { error: "Method not allowed" });
+  } catch (error) {
+    return sendJson(res, 500, { error: error.message || "Request failed" });
   }
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`File manager running at http://localhost:${PORT}`);
 });
