@@ -82,12 +82,38 @@ function contentType(url) {
     wasm: 'application/wasm',
     map: 'application/json',
     woff: 'font/woff',
+    webp: 'image/webp',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    mp4: 'video/mp4',
     '/': 'text/html',
     '': 'text/plain',
     pdf: 'application/pdf'
   };
 
   return contentTypes[url.split('.').pop()];
+}
+
+function decodeApiDirPath(pathValue = '') {
+  const normalized = String(pathValue).replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!normalized) return '';
+
+  return normalized
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join('/');
+}
+
+function sanitizeFileName(name = '') {
+  return String(name).replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_');
 }
 
 function loadJson(path) {
@@ -150,6 +176,8 @@ export {
   isStaticRequest,
   isLocalRequest,
   contentType,
+  decodeApiDirPath,
+  sanitizeFileName,
   loadJson,
   parseEnv,
   htmlToText,

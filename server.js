@@ -1,8 +1,10 @@
 import http from "http";
-import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { isInside } from "./utils/path.js";
+import { decodeApiDirPath, sanitizeFileName } from "./utils/string.js";
+import { readJsonBody, readMultipartFormData, sendFile, sendJson } from "./utils/http.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,10 +18,6 @@ console.log(`Storage root: ${STORAGE_ROOT}`);
 
 await fsPromises.mkdir(STORAGE_ROOT, { recursive: true });
 
-function isInside(parent, target) {
-  return target === parent || target.startsWith(`${parent}${path.sep}`);
-}
-
 function resolveInsideRoot(relativeDir = "") {
   const normalized = String(relativeDir).replace(/\\/g, "/").replace(/^\/+/, "");
   const target = path.resolve(STORAGE_ROOT, normalized);
@@ -29,27 +27,6 @@ function resolveInsideRoot(relativeDir = "") {
   }
 
   return { target, normalized };
-}
-
-function decodeApiDirPath(pathValue = "") {
-  const normalized = String(pathValue).replace(/^\/+/, "").replace(/\/+$/, "");
-  if (!normalized) return "";
-
-  return normalized
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => {
-      try {
-        return decodeURIComponent(segment);
-      } catch {
-        return segment;
-      }
-    })
-    .join("/");
-}
-
-function sanitizeFileName(name = "") {
-  return String(name).replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_");
 }
 
 async function listDirectory(relativeDir = "") {
@@ -81,90 +58,6 @@ async function listDirectory(relativeDir = "") {
     parentPath: normalized ? path.dirname(normalized) : null,
     items,
   };
-}
-
-function sendJson(res, statusCode, body) {
-  const data = JSON.stringify(body);
-  res.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(data),
-  });
-  res.end(data);
-}
-
-function getContentType(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  const byExt = {
-    ".html": "text/html; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".ico": "image/x-icon",
-    ".mp3": "audio/mpeg",
-    ".wav": "audio/wav",
-    ".ogg": "audio/ogg",
-    ".mp4": "video/mp4",
-  };
-  return byExt[ext] || "application/octet-stream";
-}
-
-function sendFile(res, filePath) {
-  const stream = fs.createReadStream(filePath);
-  stream.on("error", () => {
-    if (!res.headersSent) {
-      sendJson(res, 500, { error: "Unable to read file" });
-    } else {
-      res.destroy();
-    }
-  });
-
-  res.writeHead(200, { "Content-Type": getContentType(filePath) });
-  stream.pipe(res);
-}
-
-async function readRawBody(req, maxBytes = 50 * 1024 * 1024) {
-  const chunks = [];
-  let total = 0;
-
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.length;
-    if (total > maxBytes) {
-      throw new Error("Request body too large");
-    }
-    chunks.push(buffer);
-  }
-
-  return Buffer.concat(chunks);
-}
-
-async function readJsonBody(req) {
-  const raw = await readRawBody(req);
-  if (!raw.length) return {};
-
-  try {
-    return JSON.parse(raw.toString("utf8"));
-  } catch {
-    throw new Error("Invalid JSON body");
-  }
-}
-
-async function readMultipartFormData(req) {
-  const host = req.headers.host || `localhost:${PORT}`;
-  const request = new Request(`http://${host}${req.url}`, {
-    method: req.method,
-    headers: req.headers,
-    body: req,
-    duplex: "half",
-  });
-
-  return request.formData();
 }
 
 async function handleApi(req, res, url) {
@@ -243,7 +136,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/upload") {
     try {
-      const formData = await readMultipartFormData(req);
+      const formData = await readMultipartFormData(req, { host: req.headers.host || `localhost:${PORT}` });
       const requestedDir = String(formData.get("dir") || "");
       const { target: uploadTarget } = resolveInsideRoot(requestedDir);
       await fsPromises.mkdir(uploadTarget, { recursive: true });
