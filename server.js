@@ -16,8 +16,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
-// const STORAGE_ROOT = path.join(__dirname, "storage");
-const STORAGE_ROOT = "/Users/dpirek/Documents";
+const STORAGE_ROOT = process.platform === "linux"
+  ? "/home/dpirek/"
+  : "/Users/dpirek/";
 const PUBLIC_ROOT = path.join(__dirname, "public");
 
 console.log(`Storage root: ${STORAGE_ROOT}`);
