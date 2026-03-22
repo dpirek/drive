@@ -15,6 +15,13 @@ const state = {
   audioPlaylist: [],
   currentAudioIndex: -1,
   currentAudioName: "",
+  audioVisualizer: {
+    context: null,
+    analyser: null,
+    source: null,
+    rafId: null,
+    dataArray: null,
+  },
 };
 
 const el = {
@@ -38,9 +45,16 @@ const el = {
   imagePreviewLabel: document.getElementById("imagePreviewLabel"),
   imagePreview: document.getElementById("imagePreview"),
   audioPlayer: document.getElementById("audioPlayer"),
+  audioCassette: document.getElementById("audioCassette"),
   audioNowPlaying: document.getElementById("audioNowPlaying"),
-  audioPrevButton: document.getElementById("audioPrevButton"),
-  audioNextButton: document.getElementById("audioNextButton"),
+  audioTiming: document.getElementById("audioTiming"),
+  audioRewindButton: document.getElementById("audioRewindButton"),
+  audioPlayButton: document.getElementById("audioPlayButton"),
+  audioPauseButton: document.getElementById("audioPauseButton"),
+  audioStopButton: document.getElementById("audioStopButton"),
+  audioForwardButton: document.getElementById("audioForwardButton"),
+  audioSpectrum: document.getElementById("audioSpectrum"),
+  audioSpectrumBars: [],
   videoPreviewModal: document.getElementById("videoPreviewModal"),
   videoPreviewLabel: document.getElementById("videoPreviewLabel"),
   videoPreview: document.getElementById("videoPreview"),
@@ -79,11 +93,34 @@ function showImagePreview(name) {
 function updateAudioControls() {
   const hasPlaylist = state.audioPlaylist.length > 0;
   const hasSelection = state.currentAudioIndex >= 0;
-  el.audioPrevButton.disabled = !hasSelection || state.currentAudioIndex <= 0;
-  el.audioNextButton.disabled = !hasSelection || state.currentAudioIndex >= state.audioPlaylist.length - 1;
+  el.audioRewindButton.disabled = !hasSelection || state.currentAudioIndex <= 0;
+  el.audioForwardButton.disabled = !hasSelection || state.currentAudioIndex >= state.audioPlaylist.length - 1;
+  el.audioPlayButton.disabled = !hasSelection;
+  el.audioPauseButton.disabled = !hasSelection;
+  el.audioStopButton.disabled = !hasSelection;
   if (!hasPlaylist || !hasSelection) {
     el.audioNowPlaying.textContent = "No track selected";
+    el.audioTiming.textContent = "0:00 / -0:00";
   }
+}
+
+function formatAudioTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function updateAudioTiming() {
+  const duration = Number.isFinite(el.audioPlayer.duration) ? el.audioPlayer.duration : 0;
+  const current = Number.isFinite(el.audioPlayer.currentTime) ? el.audioPlayer.currentTime : 0;
+  const left = Math.max(0, duration - current);
+  el.audioTiming.textContent = `${formatAudioTime(duration)} / -${formatAudioTime(left)}`;
 }
 
 function setAudioPlaylist(items) {
@@ -107,7 +144,131 @@ function clearAudioPlayback() {
   el.audioPlayer.pause();
   el.audioPlayer.src = "";
   el.audioPlayer.load();
+  el.audioTiming.textContent = "0:00 / -0:00";
+  if (el.audioCassette) {
+    el.audioCassette.classList.remove("is-playing");
+  }
   updateAudioControls();
+}
+
+function resetSpectrumBars() {
+  for (const column of el.audioSpectrumBars) {
+    for (const brick of column) {
+      brick.classList.remove("on");
+    }
+  }
+}
+
+function initSpectrumBars() {
+  if (!el.audioSpectrum) return;
+  const svgNs = "http://www.w3.org/2000/svg";
+  const columns = 5;
+  const levels = 6;
+  const columnWidth = 8;
+  const columnGap = 3;
+  const brickHeight = 3;
+  const brickGap = 1;
+  const xOffset = 2;
+  const yOffset = 2;
+
+  el.audioSpectrum.innerHTML = "";
+  const bars = [];
+
+  for (let col = 0; col < columns; col += 1) {
+    const group = document.createElementNS(svgNs, "g");
+    const columnBricks = [];
+    const x = xOffset + col * (columnWidth + columnGap);
+
+    for (let level = 1; level <= levels; level += 1) {
+      const rect = document.createElementNS(svgNs, "rect");
+      const y = yOffset + (levels - level) * (brickHeight + brickGap);
+      const fill = level === 4 ? "#f3d64e" : level >= 5 ? "#e55252" : "#3ee079";
+      rect.setAttribute("x", String(x));
+      rect.setAttribute("y", String(y));
+      rect.setAttribute("width", String(columnWidth));
+      rect.setAttribute("height", String(brickHeight));
+      rect.setAttribute("fill", fill);
+      rect.setAttribute("class", "spectrum-brick");
+      rect.dataset.level = String(level);
+      group.appendChild(rect);
+      columnBricks.push(rect);
+    }
+
+    el.audioSpectrum.appendChild(group);
+    bars.push(columnBricks);
+  }
+
+  el.audioSpectrumBars = bars;
+}
+
+function ensureAudioVisualizer() {
+  if (state.audioVisualizer.context) return;
+  const AudioContextRef = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextRef) return;
+
+  const context = new AudioContextRef();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 64;
+  analyser.smoothingTimeConstant = 0.75;
+
+  const source = context.createMediaElementSource(el.audioPlayer);
+  source.connect(analyser);
+  analyser.connect(context.destination);
+
+  state.audioVisualizer.context = context;
+  state.audioVisualizer.analyser = analyser;
+  state.audioVisualizer.source = source;
+  state.audioVisualizer.dataArray = new Uint8Array(analyser.frequencyBinCount);
+}
+
+function renderSpectrumFrame() {
+  const visualizer = state.audioVisualizer;
+  if (!visualizer.analyser || !visualizer.dataArray) return;
+
+  visualizer.analyser.getByteFrequencyData(visualizer.dataArray);
+  const step = Math.max(1, Math.floor(visualizer.dataArray.length / el.audioSpectrumBars.length));
+
+  for (let i = 0; i < el.audioSpectrumBars.length; i += 1) {
+    const value = visualizer.dataArray[i * step] || 0;
+    const ratio = value / 255;
+    const activeLevels = Math.min(6, Math.floor(ratio * 7));
+    const bricks = el.audioSpectrumBars[i];
+
+    for (const brick of bricks) {
+      const level = Number(brick.dataset.level || "0");
+      brick.classList.toggle("on", level <= activeLevels);
+    }
+  }
+
+  visualizer.rafId = window.requestAnimationFrame(renderSpectrumFrame);
+}
+
+function startSpectrumAnalyzer() {
+  ensureAudioVisualizer();
+  const visualizer = state.audioVisualizer;
+  if (!visualizer.context) return;
+
+  if (visualizer.context.state === "suspended") {
+    void visualizer.context.resume();
+  }
+
+  if (visualizer.rafId == null) {
+    visualizer.rafId = window.requestAnimationFrame(renderSpectrumFrame);
+  }
+}
+
+function stopSpectrumAnalyzer() {
+  const visualizer = state.audioVisualizer;
+  if (visualizer.rafId != null) {
+    window.cancelAnimationFrame(visualizer.rafId);
+    visualizer.rafId = null;
+  }
+  resetSpectrumBars();
+}
+
+function setCassettePlaying(isPlaying) {
+  if (!el.audioCassette) return;
+  el.audioCassette.classList.toggle("is-playing", Boolean(isPlaying));
 }
 
 function playTrackAtIndex(index, { autoplay = true } = {}) {
@@ -119,6 +280,7 @@ function playTrackAtIndex(index, { autoplay = true } = {}) {
   el.audioNowPlaying.textContent = name;
   el.audioPlayer.src = buildFileUrl(state.currentPath, name);
   el.audioPlayer.load();
+  el.audioTiming.textContent = "0:00 / -0:00";
   if (autoplay) {
     void el.audioPlayer.play().catch(() => {});
   }
@@ -400,14 +562,33 @@ function onSidebarNavClick(event) {
 el.sidebarNav.addEventListener("click", onSidebarNavClick);
 el.mobileSidebarNav.addEventListener("click", onSidebarNavClick);
 
-el.audioPrevButton.addEventListener("click", () => {
+el.audioRewindButton.addEventListener("click", () => {
   if (state.currentAudioIndex <= 0) return;
   playTrackAtIndex(state.currentAudioIndex - 1);
 });
 
-el.audioNextButton.addEventListener("click", () => {
+el.audioForwardButton.addEventListener("click", () => {
   if (state.currentAudioIndex >= state.audioPlaylist.length - 1) return;
   playTrackAtIndex(state.currentAudioIndex + 1);
+});
+
+el.audioPlayButton.addEventListener("click", () => {
+  if (state.currentAudioIndex === -1 && state.audioPlaylist.length > 0) {
+    playTrackAtIndex(0);
+    return;
+  }
+  void el.audioPlayer.play().catch(() => {});
+});
+
+el.audioPauseButton.addEventListener("click", () => {
+  el.audioPlayer.pause();
+});
+
+el.audioStopButton.addEventListener("click", () => {
+  el.audioPlayer.pause();
+  el.audioPlayer.currentTime = 0;
+  stopSpectrumAnalyzer();
+  setCassettePlaying(false);
 });
 
 el.audioPlayer.addEventListener("ended", () => {
@@ -416,6 +597,27 @@ el.audioPlayer.addEventListener("ended", () => {
     return;
   }
   updateAudioControls();
+  updateAudioTiming();
+  stopSpectrumAnalyzer();
+  setCassettePlaying(false);
+});
+
+el.audioPlayer.addEventListener("loadedmetadata", () => {
+  updateAudioTiming();
+});
+
+el.audioPlayer.addEventListener("timeupdate", () => {
+  updateAudioTiming();
+});
+
+el.audioPlayer.addEventListener("play", () => {
+  startSpectrumAnalyzer();
+  setCassettePlaying(true);
+});
+
+el.audioPlayer.addEventListener("pause", () => {
+  stopSpectrumAnalyzer();
+  setCassettePlaying(false);
 });
 
 el.currentPath.addEventListener("click", (event) => {
@@ -580,6 +782,7 @@ window.addEventListener("popstate", () => {
 
 async function init() {
   try {
+    initSpectrumBars();
     state.authUser = await request("/api/auth");
     if (!state.authUser) {
       window.location.replace("/login");

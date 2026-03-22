@@ -14,6 +14,52 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     />
+    <style>
+      .cassette-icon {
+        width: 2.1rem;
+        height: 2.1rem;
+        display: inline-block;
+      }
+      .cassette-reel {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+      .cassette-shell {
+        fill: #ffffff;
+        stroke: #6c757d;
+        stroke-width: 2.2;
+      }
+      .cassette-window {
+        fill: #f8f9fa;
+        stroke: #adb5bd;
+        stroke-width: 1.4;
+      }
+      .cassette-detail {
+        fill: #adb5bd;
+      }
+      .cassette-icon.is-playing .cassette-reel {
+        animation: cassette-reel-spin 1s linear infinite;
+      }
+      .audio-spectrum {
+        width: 3.2rem;
+        height: 1.6rem;
+        display: block;
+      }
+      .spectrum-brick {
+        opacity: 0;
+      }
+      .spectrum-brick.on {
+        opacity: 1;
+      }
+      @keyframes cassette-reel-spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body class="bg-body-tertiary">
     <main class="container-fluid p-0 min-vh-100" style="padding-bottom: 5.5rem;">
@@ -213,16 +259,37 @@
 
     <section class="position-fixed bottom-0 start-0 end-0 bg-body border-top shadow-sm p-2" style="z-index: 1040;">
       <div class="container-fluid d-flex align-items-center gap-2">
-        <button id="audioPrevButton" type="button" class="btn btn-outline-secondary btn-sm" title="Previous track" aria-label="Previous track">
-          <i class="bi bi-skip-backward-fill"></i>
+        <button id="audioRewindButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Previous track" aria-label="Previous track">
+          <i class="bi bi-rewind-fill"></i>
         </button>
-        <button id="audioNextButton" type="button" class="btn btn-outline-secondary btn-sm" title="Next track" aria-label="Next track">
-          <i class="bi bi-skip-forward-fill"></i>
+        <button id="audioPlayButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Play" aria-label="Play">
+          <i class="bi bi-play-fill"></i>
         </button>
+        <button id="audioPauseButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Pause" aria-label="Pause">
+          <i class="bi bi-pause-fill"></i>
+        </button>
+        <button id="audioStopButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Stop" aria-label="Stop">
+          <i class="bi bi-stop-fill"></i>
+        </button>
+        <button id="audioForwardButton" type="button" class="btn btn-outline-secondary btn-sm rounded-0" style="width: 2.1rem; height: 2.1rem;" title="Next track" aria-label="Next track">
+          <i class="bi bi-fast-forward-fill"></i>
+        </button>
+        <svg id="audioCassette" class="cassette-icon" viewBox="0 0 120 80" role="img" aria-label="Cassette">
+          <rect class="cassette-shell" x="6" y="6" width="108" height="68" rx="0" />
+          <rect class="cassette-window" x="17" y="15" width="86" height="36" rx="0" />
+          <circle class="cassette-reel" cx="40" cy="33" r="17" fill="#6c757d" />
+          <circle class="cassette-reel" cx="80" cy="33" r="17" fill="#6c757d" />
+          <circle class="cassette-reel" cx="40" cy="33" r="5" fill="#f8f9fa" />
+          <circle class="cassette-reel" cx="80" cy="33" r="5" fill="#f8f9fa" />
+          <rect class="cassette-detail" x="24" y="56" width="72" height="6" rx="0" />
+          <rect class="cassette-detail" x="55" y="56" width="10" height="12" rx="0" />
+        </svg>
         <span id="audioNowPlaying" class="small text-body-secondary text-truncate" style="min-width: 9rem; max-width: 30vw;">
           No track selected
         </span>
-        <audio id="audioPlayer" class="flex-grow-1" controls preload="metadata"></audio>
+        <span id="audioTiming" class="small text-body-secondary text-nowrap">0:00 / -0:00</span>
+        <svg id="audioSpectrum" class="audio-spectrum ms-auto" viewBox="0 0 56 28" role="img" aria-label="Audio analyzer"></svg>
+        <audio id="audioPlayer" class="d-none" preload="metadata" aria-hidden="true"></audio>
       </div>
     </section>
 
