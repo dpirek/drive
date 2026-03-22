@@ -26,7 +26,7 @@ const { resolveInsideRoot, listDirectory } = createStorageUtils({ storageRoot: S
 
 const filesHandlers = createFilesHandlers({ listDirectory, resolveInsideRoot });
 const directoriesHandlers = createDirectoriesHandlers({ resolveInsideRoot });
-const uploadHandlers = createUploadHandlers({ resolveInsideRoot, port: PORT });
+const uploadHandlers = createUploadHandlers({ resolveInsideRoot });
 const authHandlers = createAuthHandlers();
 const handleStatic = createStaticHandler({ publicRoot: PUBLIC_ROOT, isInside });
 

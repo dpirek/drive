@@ -1,34 +1,28 @@
 import fsPromises from "fs/promises";
+import fs from "fs";
 import path from "path";
+import { pipeline } from "stream/promises";
 import { sanitizeFileName } from "../utils/string.js";
-import { readMultipartFormData, sendJson } from "../utils/http.js";
+import { sendJson } from "../utils/http.js";
 
-function createUploadHandlers({ resolveInsideRoot, port }) {
-  async function uploadFiles(req, res) {
+function createUploadHandlers({ resolveInsideRoot }) {
+  async function uploadFiles(req, res, { queryParams }) {
     try {
-      const formData = await readMultipartFormData(req, { host: req.headers.host || `localhost:${port}` });
-      const requestedDir = String(formData.get("dir") || "");
+      const requestedDir = String(queryParams.dir || "");
+      const rawName = String(queryParams.name || "").trim();
+      if (!rawName) {
+        return sendJson(res, 400, { error: "File name is required" });
+      }
+
       const { target: uploadTarget } = resolveInsideRoot(requestedDir);
       await fsPromises.mkdir(uploadTarget, { recursive: true });
 
-      const files = formData
-        .getAll("files")
-        .filter((value) => value && typeof value === "object" && typeof value.arrayBuffer === "function");
+      const safeName = sanitizeFileName(rawName) || `upload-${Date.now()}`;
+      const filePath = path.join(uploadTarget, safeName);
+      const writeStream = fs.createWriteStream(filePath);
+      await pipeline(req, writeStream);
 
-      if (!files.length) {
-        return sendJson(res, 400, { error: "No files uploaded" });
-      }
-
-      await Promise.all(
-        files.map(async (file, index) => {
-          const safeName = sanitizeFileName(file.name) || `upload-${Date.now()}-${index}`;
-          const filePath = path.join(uploadTarget, safeName);
-          const content = Buffer.from(await file.arrayBuffer());
-          await fsPromises.writeFile(filePath, content);
-        })
-      );
-
-      return sendJson(res, 201, { message: "Files uploaded" });
+      return sendJson(res, 201, { message: "File uploaded", name: safeName });
     } catch (error) {
       return sendJson(res, 400, { error: error.message || "Unable to upload files" });
     }

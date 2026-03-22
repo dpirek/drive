@@ -365,16 +365,22 @@ el.uploadForm.addEventListener("submit", async (event) => {
   }
 
   try {
-    const formData = new FormData();
-    formData.append("dir", state.currentPath);
-    for (const file of el.fileInput.files) {
-      formData.append("files", file);
-    }
+    const files = Array.from(el.fileInput.files);
+    const totalFiles = files.length;
+    let completedFiles = 0;
 
-    setStatus("Uploading 0%");
-    await uploadWithProgress("/api/upload", formData, (percentage) => {
-      setStatus(`Uploading ${percentage}%`);
-    });
+    for (const file of files) {
+      const query = new URLSearchParams({
+        dir: state.currentPath,
+        name: file.name,
+      });
+
+      await uploadWithProgress(`/api/upload?${query.toString()}`, file, (percentage) => {
+        const overall = Math.round(((completedFiles + percentage / 100) / totalFiles) * 100);
+        setStatus(`Uploading ${overall}%`);
+      });
+      completedFiles += 1;
+    }
 
     el.uploadForm.reset();
     await loadDirectory();

@@ -50,22 +50,9 @@ async function readJsonBody(req) {
   }
 }
 
-async function readMultipartFormData(req, { host } = {}) {
-  const requestHost = host || "localhost";
-  const request = new Request(`http://${requestHost}${req.url}`, {
-    method: req.method,
-    headers: req.headers,
-    body: req,
-    duplex: "half",
-  });
-
-  return request.formData();
-}
-
 export {
   sendJson,
   sendFile,
   readRawBody,
   readJsonBody,
-  readMultipartFormData,
 };
