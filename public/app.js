@@ -251,6 +251,40 @@ async function request(url, options = {}) {
   return data;
 }
 
+function uploadWithProgress(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.responseType = "json";
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return;
+      const percentage = Math.round((event.loaded / event.total) * 100);
+      onProgress(percentage);
+    });
+
+    xhr.addEventListener("load", () => {
+      const data = xhr.response || {};
+      if (xhr.status === 401) {
+        window.location.replace("/login");
+        reject(new Error("Unauthorized"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data);
+        return;
+      }
+      reject(new Error(data.error || "Request failed"));
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("Network error"));
+    });
+
+    xhr.send(formData);
+  });
+}
+
 async function loadDirectory(
   dir = state.currentPath,
   { syncUrl = true, replaceHistory = false } = {}
@@ -337,9 +371,9 @@ el.uploadForm.addEventListener("submit", async (event) => {
       formData.append("files", file);
     }
 
-    await request("/api/upload", {
-      method: "POST",
-      body: formData,
+    setStatus("Uploading 0%");
+    await uploadWithProgress("/api/upload", formData, (percentage) => {
+      setStatus(`Uploading ${percentage}%`);
     });
 
     el.uploadForm.reset();

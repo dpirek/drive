@@ -2,7 +2,7 @@ import * as auth from "../utils/auth.js";
 import { readJsonBody, sendJson } from "../utils/http.js";
 
 async function loginUser({ username, password, response }) {
-  if (username === "dave" && password === "a") {
+  if (username === "dave" && password === "zkouzka321") {
     auth.login(response, username, "admin");
     return {
       username,
