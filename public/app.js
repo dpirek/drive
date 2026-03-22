@@ -12,6 +12,9 @@ const state = {
   currentPath: "",
   parentPath: null,
   authUser: null,
+  audioPlaylist: [],
+  currentAudioIndex: -1,
+  currentAudioName: "",
 };
 
 const el = {
@@ -34,9 +37,10 @@ const el = {
   imagePreviewModal: document.getElementById("imagePreviewModal"),
   imagePreviewLabel: document.getElementById("imagePreviewLabel"),
   imagePreview: document.getElementById("imagePreview"),
-  audioPlayerModal: document.getElementById("audioPlayerModal"),
-  audioPlayerLabel: document.getElementById("audioPlayerLabel"),
   audioPlayer: document.getElementById("audioPlayer"),
+  audioNowPlaying: document.getElementById("audioNowPlaying"),
+  audioPrevButton: document.getElementById("audioPrevButton"),
+  audioNextButton: document.getElementById("audioNextButton"),
   videoPreviewModal: document.getElementById("videoPreviewModal"),
   videoPreviewLabel: document.getElementById("videoPreviewLabel"),
   videoPreview: document.getElementById("videoPreview"),
@@ -44,9 +48,6 @@ const el = {
 
 const imageModal = window.bootstrap?.Modal
   ? new window.bootstrap.Modal(el.imagePreviewModal)
-  : null;
-const audioModal = window.bootstrap?.Modal
-  ? new window.bootstrap.Modal(el.audioPlayerModal)
   : null;
 const videoModal = window.bootstrap?.Modal
   ? new window.bootstrap.Modal(el.videoPreviewModal)
@@ -75,17 +76,62 @@ function showImagePreview(name) {
   imageModal.show();
 }
 
-function showAudioPlayer(name) {
-  if (!audioModal) {
-    setStatus("Audio player is unavailable because Bootstrap JS did not load", true);
-    return;
+function updateAudioControls() {
+  const hasPlaylist = state.audioPlaylist.length > 0;
+  const hasSelection = state.currentAudioIndex >= 0;
+  el.audioPrevButton.disabled = !hasSelection || state.currentAudioIndex <= 0;
+  el.audioNextButton.disabled = !hasSelection || state.currentAudioIndex >= state.audioPlaylist.length - 1;
+  if (!hasPlaylist || !hasSelection) {
+    el.audioNowPlaying.textContent = "No track selected";
+  }
+}
+
+function setAudioPlaylist(items) {
+  state.audioPlaylist = items
+    .filter((item) => item.type === "file" && isAudioFile(item.name))
+    .map((item) => item.name);
+
+  if (!state.audioPlaylist.includes(state.currentAudioName)) {
+    state.currentAudioIndex = -1;
+    state.currentAudioName = "";
+  } else {
+    state.currentAudioIndex = state.audioPlaylist.indexOf(state.currentAudioName);
   }
 
-  el.audioPlayerLabel.textContent = name;
+  updateAudioControls();
+}
+
+function clearAudioPlayback() {
+  state.currentAudioIndex = -1;
+  state.currentAudioName = "";
+  el.audioPlayer.pause();
+  el.audioPlayer.src = "";
+  el.audioPlayer.load();
+  updateAudioControls();
+}
+
+function playTrackAtIndex(index, { autoplay = true } = {}) {
+  if (index < 0 || index >= state.audioPlaylist.length) return;
+
+  const name = state.audioPlaylist[index];
+  state.currentAudioIndex = index;
+  state.currentAudioName = name;
+  el.audioNowPlaying.textContent = name;
   el.audioPlayer.src = buildFileUrl(state.currentPath, name);
   el.audioPlayer.load();
-  audioModal.show();
-  void el.audioPlayer.play().catch(() => {});
+  if (autoplay) {
+    void el.audioPlayer.play().catch(() => {});
+  }
+  updateAudioControls();
+}
+
+function showAudioPlayer(name) {
+  const index = state.audioPlaylist.indexOf(name);
+  if (index === -1) {
+    setStatus("Track not found in current folder", true);
+    return;
+  }
+  playTrackAtIndex(index);
 }
 
 function showVideoPreview(name) {
@@ -323,12 +369,18 @@ async function loadDirectory(
       : "";
     const data = await request(`/api/files${encodedPath}`);
 
+    const previousPath = state.currentPath;
     state.currentPath = data.currentPath;
     state.parentPath = data.parentPath;
+
+    if (previousPath !== data.currentPath) {
+      clearAudioPlayback();
+    }
 
     renderPathNav();
     renderFiles(data.items);
     renderSidebar(data.items);
+    setAudioPlaylist(data.items);
     if (syncUrl) {
       syncUrlToDir(data.currentPath, { replace: replaceHistory });
     }
@@ -347,6 +399,24 @@ function onSidebarNavClick(event) {
 
 el.sidebarNav.addEventListener("click", onSidebarNavClick);
 el.mobileSidebarNav.addEventListener("click", onSidebarNavClick);
+
+el.audioPrevButton.addEventListener("click", () => {
+  if (state.currentAudioIndex <= 0) return;
+  playTrackAtIndex(state.currentAudioIndex - 1);
+});
+
+el.audioNextButton.addEventListener("click", () => {
+  if (state.currentAudioIndex >= state.audioPlaylist.length - 1) return;
+  playTrackAtIndex(state.currentAudioIndex + 1);
+});
+
+el.audioPlayer.addEventListener("ended", () => {
+  if (state.currentAudioIndex < state.audioPlaylist.length - 1) {
+    playTrackAtIndex(state.currentAudioIndex + 1);
+    return;
+  }
+  updateAudioControls();
+});
 
 el.currentPath.addEventListener("click", (event) => {
   const link = event.target.closest("a[data-path]");
@@ -497,11 +567,6 @@ el.fileList.addEventListener("click", async (event) => {
 
 el.imagePreviewModal.addEventListener("hidden.bs.modal", () => {
   el.imagePreview.src = "";
-});
-el.audioPlayerModal.addEventListener("hidden.bs.modal", () => {
-  el.audioPlayer.pause();
-  el.audioPlayer.src = "";
-  el.audioPlayer.load();
 });
 el.videoPreviewModal.addEventListener("hidden.bs.modal", () => {
   el.videoPreview.pause();

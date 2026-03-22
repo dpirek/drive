@@ -3,7 +3,7 @@ import path from "path";
 import { sendFile, sendJson } from "../utils/http.js";
 
 function createStaticHandler({ publicRoot, isInside }) {
-  return async function handleStatic(_req, res, { pathname, authUser }) {
+  return async function handleStatic(req, res, { pathname, authUser }) {
     const decodedPath = decodeURIComponent(pathname);
     const isLoginPage = decodedPath === "/login";
 
@@ -13,7 +13,7 @@ function createStaticHandler({ publicRoot, isInside }) {
         res.end();
         return;
       }
-      return sendFile(res, path.join(publicRoot, "login.html"));
+      return sendFile(req, res, path.join(publicRoot, "login.html"));
     }
 
     if (!authUser && !path.extname(decodedPath)) {
@@ -23,7 +23,7 @@ function createStaticHandler({ publicRoot, isInside }) {
     }
 
     if (decodedPath === "/") {
-      return sendFile(res, path.join(publicRoot, "index.html"));
+      return sendFile(req, res, path.join(publicRoot, "index.html"));
     }
 
     const relative = decodedPath.replace(/^\/+/, "");
@@ -36,7 +36,7 @@ function createStaticHandler({ publicRoot, isInside }) {
     try {
       const stats = await fsPromises.stat(candidate);
       if (stats.isFile()) {
-        return sendFile(res, candidate);
+        return sendFile(req, res, candidate);
       }
     } catch {
       // fall through to SPA fallback
@@ -46,7 +46,7 @@ function createStaticHandler({ publicRoot, isInside }) {
       return sendJson(res, 404, { error: "Not found" });
     }
 
-    return sendFile(res, path.join(publicRoot, "index.html"));
+    return sendFile(req, res, path.join(publicRoot, "index.html"));
   };
 }
 

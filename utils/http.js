@@ -7,8 +7,64 @@ function sendJson(res, statusCode, body) {
   res.end(JSON.stringify(body));
 }
 
-function sendFile(res, filePath) {
-  const stream = fs.createReadStream(filePath);
+function sendFile(req, res, filePath) {
+  const stats = fs.statSync(filePath);
+  const totalSize = stats.size;
+  const fileContentType = contentType(filePath) || "application/octet-stream";
+  const rangeHeader = req.headers.range;
+
+  if (!rangeHeader) {
+    res.writeHead(200, {
+      "Content-Type": fileContentType,
+      "Content-Length": totalSize,
+      "Accept-Ranges": "bytes",
+    });
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", () => {
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: "Unable to read file" });
+      } else {
+        res.destroy();
+      }
+    });
+    stream.pipe(res);
+    return;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+  if (!match) {
+    res.writeHead(416, { "Content-Range": `bytes */${totalSize}` });
+    res.end();
+    return;
+  }
+
+  const start = match[1] === "" ? 0 : Number.parseInt(match[1], 10);
+  const end = match[2] === "" ? totalSize - 1 : Number.parseInt(match[2], 10);
+  if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= totalSize) {
+    res.writeHead(416, { "Content-Range": `bytes */${totalSize}` });
+    res.end();
+    return;
+  }
+
+  const safeEnd = Math.min(end, totalSize - 1);
+  const chunkSize = safeEnd - start + 1;
+  res.writeHead(206, {
+    "Content-Type": fileContentType,
+    "Content-Length": chunkSize,
+    "Content-Range": `bytes ${start}-${safeEnd}/${totalSize}`,
+    "Accept-Ranges": "bytes",
+  });
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
+
+  const stream = fs.createReadStream(filePath, { start, end: safeEnd });
   stream.on("error", () => {
     if (!res.headersSent) {
       sendJson(res, 500, { error: "Unable to read file" });
@@ -17,9 +73,6 @@ function sendFile(res, filePath) {
     }
   });
 
-  res.writeHead(200, {
-    "Content-Type": contentType(filePath) || "application/octet-stream",
-  });
   stream.pipe(res);
 }
 

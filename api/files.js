@@ -24,7 +24,7 @@ function createFilesHandlers({ listDirectory, resolveInsideRoot }) {
     }
   }
 
-  async function getFile(_req, res, { queryParams }) {
+  async function getFile(req, res, { queryParams }) {
     try {
       const dir = String(queryParams.dir || "");
       const name = String(queryParams.name || "");
@@ -40,7 +40,7 @@ function createFilesHandlers({ listDirectory, resolveInsideRoot }) {
         return sendJson(res, 400, { error: "Requested path is not a file" });
       }
 
-      return sendFile(res, target);
+      return sendFile(req, res, target);
     } catch (error) {
       if (error.code === "ENOENT") {
         return sendJson(res, 404, { error: "File not found" });
