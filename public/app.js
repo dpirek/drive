@@ -394,6 +394,21 @@ el.uploadForm.addEventListener("submit", async (event) => {
   }
 });
 
+el.fileInput.addEventListener("change", () => {
+  const files = Array.from(el.fileInput.files || []);
+  if (!files.length) {
+    setStatus("No file selected");
+    return;
+  }
+
+  if (files.length === 1) {
+    setStatus(`Selected: ${files[0].name}`);
+    return;
+  }
+
+  setStatus(`Selected: ${files[0].name} (+${files.length - 1} more)`);
+});
+
 el.fileList.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
