@@ -18,7 +18,7 @@
   <body class="bg-body-tertiary">
     <main class="container-fluid p-0 min-vh-100">
       <div class="row g-0 min-vh-100">
-        <aside class="col-12 col-lg-3 col-xl-2">
+        <aside class="d-none d-lg-block col-lg-3 col-xl-2">
           <div class="card shadow-sm h-100 rounded-0">
             <div class="card-body p-3 d-flex flex-column gap-3">
               <section class="d-flex align-items-center justify-content-between">
@@ -55,11 +55,25 @@
 
         <section class="col-12 col-lg-9 col-xl-10">
           <div class="h-100">
-            <div class="p-3 p-md-4">
+            <div class="p-3">
               <section class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-                <div id="currentPath" class="d-flex flex-wrap align-items-center gap-1"></div>
+                <div class="d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm d-lg-none"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#mobileMenuPanel"
+                    aria-controls="mobileMenuPanel"
+                    aria-expanded="false"
+                    aria-label="Toggle navigation"
+                    title="Toggle navigation"
+                  >
+                    <i class="bi bi-list"></i>
+                  </button>
+                  <div id="currentPath" class="d-none d-md-flex flex-wrap align-items-center gap-1"></div>
+                </div>
                 <div class="d-flex gap-2 align-items-center ms-auto">
-                  <form id="createDirForm" class="d-flex">
+                  <form id="createDirForm" class="d-none d-md-flex">
                     <input
                       id="directoryName"
                       name="directoryName"
@@ -91,6 +105,41 @@
                       <i class="bi bi-upload"></i>
                     </button>
                   </form>
+                </div>
+              </section>
+
+              <section id="mobileMenuPanel" class="collapse d-lg-none mb-3">
+                <div class="card shadow-sm rounded-0">
+                  <div class="card-body p-3 d-flex flex-column gap-3">
+                    <section class="d-flex align-items-center justify-content-between">
+                      <div class="d-flex align-items-center gap-2">
+                        <span
+                          id="mobileUserAvatar"
+                          class="d-inline-flex align-items-center justify-content-center rounded-circle border border-secondary-subtle bg-primary-subtle text-primary-emphasis fw-semibold"
+                          aria-label="Current user"
+                          title="Current user"
+                          style="width: 2rem; height: 2rem;"
+                        >
+                          <i class="bi bi-person-fill"></i>
+                        </span>
+                        <span id="mobileUserName" class="small text-body-secondary"></span>
+                      </div>
+                      <button
+                        id="mobileLogoutButton"
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        title="Logout"
+                        aria-label="Logout"
+                      >
+                        <i class="bi bi-box-arrow-right"></i>
+                      </button>
+                    </section>
+
+                    <nav>
+                      <div class="small text-body-secondary mb-2">Folders</div>
+                      <div id="mobileSidebarNav" class="list-group list-group-flush"></div>
+                    </nav>
+                  </div>
                 </div>
               </section>
 

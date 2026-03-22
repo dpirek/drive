@@ -15,11 +15,16 @@ const state = {
 };
 
 const el = {
+  mobileMenuPanel: document.getElementById("mobileMenuPanel"),
   userAvatar: document.getElementById("userAvatar"),
+  mobileUserAvatar: document.getElementById("mobileUserAvatar"),
   userName: document.getElementById("userName"),
+  mobileUserName: document.getElementById("mobileUserName"),
   logoutButton: document.getElementById("logoutButton"),
+  mobileLogoutButton: document.getElementById("mobileLogoutButton"),
   currentPath: document.getElementById("currentPath"),
   sidebarNav: document.getElementById("sidebarNav"),
+  mobileSidebarNav: document.getElementById("mobileSidebarNav"),
   createDirForm: document.getElementById("createDirForm"),
   directoryName: document.getElementById("directoryName"),
   uploadForm: document.getElementById("uploadForm"),
@@ -116,7 +121,9 @@ function renderUser() {
   const username = String(state.authUser?.username || "");
   const initial = username ? username.charAt(0).toUpperCase() : "U";
   el.userAvatar.innerHTML = username ? initial : '<i class="bi bi-person-fill"></i>';
+  el.mobileUserAvatar.innerHTML = username ? initial : '<i class="bi bi-person-fill"></i>';
   el.userName.textContent = username || "";
+  el.mobileUserName.textContent = username || "";
 }
 
 function renderFiles(items) {
@@ -173,7 +180,11 @@ function renderFiles(items) {
 }
 
 function renderSidebar(items) {
-  el.sidebarNav.innerHTML = "";
+  const navTargets = [el.sidebarNav, el.mobileSidebarNav].filter(Boolean);
+  for (const target of navTargets) {
+    target.innerHTML = "";
+  }
+
   const addTreeNode = (label, path, depth, { active = false, icon = "bi-folder" } = {}) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -181,7 +192,9 @@ function renderSidebar(items) {
     btn.dataset.path = path;
     btn.style.paddingLeft = `${0.75 + depth * 0.55}rem`;
     btn.innerHTML = `<i class="bi ${icon} me-2"></i>${label}`;
-    el.sidebarNav.appendChild(btn);
+    for (const target of navTargets) {
+      target.appendChild(btn.cloneNode(true));
+    }
   };
 
   addTreeNode("Root", "", 0, {
@@ -236,6 +249,16 @@ function renderPathNav() {
     link.textContent = segment;
     el.currentPath.appendChild(link);
   }
+}
+
+function closeSidebarOnMobile() {
+  if (window.innerWidth >= 992) return;
+  if (!el.mobileMenuPanel || !window.bootstrap?.Collapse) return;
+
+  const instance = window.bootstrap.Collapse.getOrCreateInstance(el.mobileMenuPanel, {
+    toggle: false,
+  });
+  instance.hide();
 }
 
 async function request(url, options = {}) {
@@ -315,11 +338,15 @@ async function loadDirectory(
   }
 }
 
-el.sidebarNav.addEventListener("click", (event) => {
+function onSidebarNavClick(event) {
   const button = event.target.closest("button[data-path]");
   if (!button) return;
   loadDirectory(button.dataset.path || "");
-});
+  closeSidebarOnMobile();
+}
+
+el.sidebarNav.addEventListener("click", onSidebarNavClick);
+el.mobileSidebarNav.addEventListener("click", onSidebarNavClick);
 
 el.currentPath.addEventListener("click", (event) => {
   const link = event.target.closest("a[data-path]");
@@ -328,14 +355,17 @@ el.currentPath.addEventListener("click", (event) => {
   loadDirectory(link.dataset.path || "");
 });
 
-el.logoutButton.addEventListener("click", async () => {
+async function onLogoutClick() {
   try {
     await request("/api/logout", { method: "POST" });
   } catch {
     // Ignore and force redirect to login anyway.
   }
   window.location.replace("/login");
-});
+}
+
+el.logoutButton.addEventListener("click", onLogoutClick);
+el.mobileLogoutButton.addEventListener("click", onLogoutClick);
 
 el.createDirForm.addEventListener("submit", async (event) => {
   event.preventDefault();
